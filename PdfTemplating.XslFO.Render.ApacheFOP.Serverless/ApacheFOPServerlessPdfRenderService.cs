@@ -37,7 +37,7 @@ namespace PdfTemplating.XslFO.ApacheFOP.Serverless
             //***********************************************************
             //Render the Xsl-FO source into a Pdf binary output
             //***********************************************************
-            //Initialize the Xsl-FO micro-service via configuration...
+            //Initialize the Xsl-FO microservice via configuration...
             var restRequest = CreateRestRequest();
 
             //Execute the request to the service, validate, and retrieve the Raw Binary response...
@@ -45,7 +45,7 @@ namespace PdfTemplating.XslFO.ApacheFOP.Serverless
             IFlurlResponse restResponse;
             try
             {
-                restResponse = await restRequest.PostAsync(httpContent, cancellationToken).ConfigureAwait(false);
+                restResponse = await restRequest.PostAsync(httpContent, cancellationToken: cancellationToken).ConfigureAwait(false);
             }
             catch (FlurlHttpException flurlHttpException)
             {
@@ -65,6 +65,7 @@ namespace PdfTemplating.XslFO.ApacheFOP.Serverless
 
             //Read teh Pdf Bytes (decompressing if necessary) and return the Apache FOP Serverless response...
             var rawResponseBytes = await restResponse.GetBytesAsync().ConfigureAwait(false);
+
             var pdfBytes = isResponseGzipEncoded
                 ? await rawResponseBytes.GzipDecompressAsync().ConfigureAwait(false)
                 : rawResponseBytes;

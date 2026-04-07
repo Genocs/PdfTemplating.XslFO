@@ -16,9 +16,10 @@ Copyright 2020 Brandon Bernard
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PdfTemplating.SystemCustomExtensions;
-using Microsoft.AspNetCore.WebUtilities;
 using Flurl;
+using PdfTemplating.SystemLinqCustomExtensions;
 
 namespace PdfTemplating.XslFO.ApacheFOP.Serverless
 {
@@ -34,28 +35,26 @@ namespace PdfTemplating.XslFO.ApacheFOP.Serverless
         {
             apacheFopServlessUriWithToken.AssertArgumentIsNotNull(nameof(apacheFopServlessUriWithToken), "A valid Uri to the Apache FOP service must be specified.");
 
-            //Safely parse the Host as we expect from the provided Uri.
-            var hostUrlString = apacheFopServlessUriWithToken
-                .GetComponents(UriComponents.SchemeAndServer, UriFormat.SafeUnescaped)
-                .AssertArgumentIsNotNullOrBlank(nameof(apacheFopServlessUriWithToken), "The Apache FOP service Uri provided is invalid; the Server Host and Scheme of the Uri are blank/empty.");
-            
-            this.ApacheFOPServiceHost = new Uri(hostUrlString);
+            var flurlUrl = new Url(apacheFopServlessUriWithToken);
 
-            //Safely parse the API Path as we expect from the provided Uri if included.
-            var apiPath = apacheFopServlessUriWithToken.GetComponents(UriComponents.Path, UriFormat.SafeUnescaped);
-            if (!string.IsNullOrWhiteSpace(apiPath))
+            if (flurlUrl.PathSegments.Count > 0)
             {
-                this.ApacheFopXslFoApi = apiPath;
-                //TODO: Make this more robust with Regex Replace...
-                this.ApacheFopGzipApi = apiPath.Replace(DefaultXslFoCommandName, DefaultGzipCommandName);
+                //Safely parse the API Path as we expect from the provided Uri if included.
+                this.ApacheFopXslFoApi = flurlUrl.Path;
+
+                var xslfoPathIndex = flurlUrl.PathSegments.ToList().FindIndex(s => s.Equals(DefaultXslFoCommandName, StringComparison.OrdinalIgnoreCase));
+                if (xslfoPathIndex >= 0)
+                {
+                    flurlUrl.PathSegments[xslfoPathIndex] = DefaultGzipCommandName;
+                    this.ApacheFopGzipApi = flurlUrl.Path;
+                }
             }
 
-            //Safely initialize any pre-defined Querystring Params from the original Uri
-            var query = QueryHelpers.ParseQuery(apacheFopServlessUriWithToken.Query);
-            foreach (var key in query.Keys)
-            {
-                this.QuerystringParams[key] = query[key].ToString();
-            }
+            //Safely initialize any pre-defined Querystring Params from the original Uri (using Flurl.Util helpers)...
+            this.QuerystringParams = flurlUrl.QueryParams.ToDictionarySafely(qp => qp.Name, qp => qp.Value.ToString());
+
+            //Safely parse the base Host Url as we expect from the provided Uri.
+            this.ApacheFOPServiceHost = flurlUrl.RemovePath().RemoveQuery().RemoveFragment().ToUri();
         }
 
         public ApacheFOPServerlessXslFORenderOptions(Uri apacheFopServlessHostUri, string azFuncAuthTokenCode)
@@ -81,7 +80,7 @@ namespace PdfTemplating.XslFO.ApacheFOP.Serverless
                 : this.ApacheFopXslFoApi;
         }
         
-        public Dictionary<string, string> QuerystringParams { get; } = new Dictionary<string, string>();
+        public Dictionary<string, string> QuerystringParams { get; private set; } = new Dictionary<string, string>();
 
         public Dictionary<string, string> RequestHeaders { get; } = new Dictionary<string, string>();
 
